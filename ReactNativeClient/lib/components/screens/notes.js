@@ -1,5 +1,5 @@
 const React = require('react'); const Component = React.Component;
-const { AppState, View, Button, Text } = require('react-native');
+const { AppState, View, Button, Text, StyleSheet } = require('react-native');
 const { stateUtils } = require('lib/reducer.js');
 const { connect } = require('react-redux');
 const { reg } = require('lib/registry.js');
@@ -72,6 +72,25 @@ class NotesScreenComponent extends BaseScreenComponent {
 		}
 	}
 
+	styles() {
+		if (!this.styles_) this.styles_ = {};
+		const themeId = this.props.theme;
+		const theme = themeStyle(themeId);
+		const cacheKey = themeId;
+
+		if (this.styles_[cacheKey]) return this.styles_[cacheKey];
+		this.styles_ = {};
+
+		let styles = {
+			noteList: {
+				flex: 1,
+			},
+		};
+
+		this.styles_[cacheKey] = StyleSheet.create(styles);
+		return this.styles_[cacheKey];
+	}
+
 	async componentDidMount() {
 		await this.refreshNotes();
 		AppState.addEventListener('change', this.onAppStateChange_);
@@ -81,15 +100,15 @@ class NotesScreenComponent extends BaseScreenComponent {
 		AppState.removeEventListener('change', this.onAppStateChange_);
 	}
 
-	async UNSAFE_componentWillReceiveProps(newProps) {
-		if (newProps.notesOrder !== this.props.notesOrder ||
-		    newProps.selectedFolderId != this.props.selectedFolderId ||
-		    newProps.selectedTagId != this.props.selectedTagId ||
-		    newProps.selectedSmartFilterId != this.props.selectedSmartFilterId ||
-		    newProps.notesParentType != this.props.notesParentType) {
-			await this.refreshNotes(newProps);
+		async componentDidUpdate(prevProps) {
+			if (prevProps.notesOrder !== this.props.notesOrder ||
+				prevProps.selectedFolderId != this.props.selectedFolderId ||
+				prevProps.selectedTagId != this.props.selectedTagId ||
+				prevProps.selectedSmartFilterId != this.props.selectedSmartFilterId ||
+				prevProps.notesParentType != this.props.notesParentType) {
+					await this.refreshNotes(this.props);
+			}
 		}
-	}
 
 	async refreshNotes(props = null) {
 		if (props === null) props = this.props;
@@ -125,6 +144,8 @@ class NotesScreenComponent extends BaseScreenComponent {
 			notes: notes,
 			notesSource: source,
 		});
+
+		console.info('Done', Date.now() - startTime);
 	}
 
 	deleteFolder_onPress(folderId) {
@@ -151,23 +172,6 @@ class NotesScreenComponent extends BaseScreenComponent {
 		});
 	}
 
-	menuOptions() {
-		if (this.props.notesParentType == 'Folder') {
-			if (this.props.selectedFolderId == Folder.conflictFolderId()) return [];
-
-			const folder = this.parentItem();
-			if (!folder) return [];
-
-			let output = [];
-			// if (!folder.encryption_applied) output.push({ title: _('Edit notebook'), onPress: () => { this.editFolder_onPress(this.props.selectedFolderId); } });
-			// output.push({ title: _('Delete notebook'), onPress: () => { this.deleteFolder_onPress(this.props.selectedFolderId); } });
-
-			return output;
-		} else {
-			return []; // For tags - TODO
-		}
-	}
-
 	parentItem(props = null) {
 		if (!props) props = this.props;
 
@@ -183,6 +187,18 @@ class NotesScreenComponent extends BaseScreenComponent {
 			throw new Error('Invalid parent type: ' + props.notesParentType);
 		}
 		return output;
+	}
+
+	folderPickerOptions() {
+		const options = {
+			enabled: this.props.noteSelectionEnabled,
+			mustSelect: true,
+		};
+
+		if (this.folderPickerOptions_ && options.enabled === this.folderPickerOptions_.enabled) return this.folderPickerOptions_;
+
+		this.folderPickerOptions_ = options;
+		return this.folderPickerOptions_;
 	}
 
 	render() {
@@ -201,7 +217,7 @@ class NotesScreenComponent extends BaseScreenComponent {
 		if (!parent) {
 			return (
 				<View style={rootStyle}>
-					<ScreenHeader title={title} menuOptions={this.menuOptions()} />
+					<ScreenHeader title={title} />
 				</View>
 			)
 		}
@@ -216,15 +232,13 @@ class NotesScreenComponent extends BaseScreenComponent {
 				<ScreenHeader
 					title={title}
 					showBackButton={false}
-					menuOptions={this.menuOptions()}
 					parentComponent={thisComp}
 					sortButton_press={this.sortButton_press}
-					folderPickerOptions={{
-						enabled: this.props.noteSelectionEnabled,
-						mustSelect: true,
-					}}
+					folderPickerOptions={this.folderPickerOptions()}
+					showSearchButton={true}
+					showSideMenuButton={true}
 				/>
-				<NoteList style={{flex: 1}}/>
+				<NoteList style={this.styles().noteList}/>
 				{ actionButtonComp }
 				<DialogBox ref={dialogbox => { this.dialogbox = dialogbox }}/>
 			</View>
